@@ -77,7 +77,7 @@ namespace Envoy.ArrCookieRestorer
 				}
 
 				// response.Cookies also updates request.Cookies, which may have other implications, so we set the raw cookie
-				response.Headers.Add("Set-Cookie", cookieName + "=" + serverHash + ";Path=" + request.ApplicationPath);
+				response.Headers.Add("Set-Cookie", cookieName + "=" + serverHash + ";Path=" + request.ApplicationPath + ";Domain=" + request.Url.Host);
 			}
 		}
 	}
