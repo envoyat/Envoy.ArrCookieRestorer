@@ -1,4 +1,5 @@
-﻿using System.Collections.Specialized;
+﻿using System;
+using System.Collections.Specialized;
 using System.Web;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Rhino.Mocks;
@@ -18,6 +19,7 @@ namespace Envoy.ArrCookieRestorer.Testing
 			request.Stub(r => r.Headers).Return(new NameValueCollection());
 			request.Stub(r => r.QueryString).Return(new NameValueCollection());
 			request.Stub(r => r.ApplicationPath).Return("/");
+			request.Stub(r => r.Url).Return(new Uri("http://www.example.com/"));
 			response = MockRepository.GenerateStub<HttpResponseBase>();
 			response.Stub(r => r.Headers).Return(new NameValueCollection());
 		}
@@ -27,9 +29,10 @@ namespace Envoy.ArrCookieRestorer.Testing
 		{
 			request.QueryString["arrQueryString"] = "good";
 			request.Headers["Cookie"] = "a=b; arrCookie=bad; x=y";
+			
 			ArrCookieRestorerModule.Restore(request, response);
 			Assert.AreEqual("a=b; arrCookie=good; x=y", request.Headers["Cookie"]);
-			Assert.AreEqual("arrCookie=good;Path=/", response.Headers["Set-Cookie"]);
+			Assert.AreEqual("arrCookie=good;Path=/;Domain=www.example.com", response.Headers["Set-Cookie"]);
 		}
 
 		[TestMethod]
@@ -39,7 +42,7 @@ namespace Envoy.ArrCookieRestorer.Testing
 			request.Headers["Cookie"] = "a=b";
 			ArrCookieRestorerModule.Restore(request, response);
 			Assert.AreEqual("a=b; arrCookie=good", request.Headers["Cookie"]);
-			Assert.AreEqual("arrCookie=good;Path=/", response.Headers["Set-Cookie"]);
+			Assert.AreEqual("arrCookie=good;Path=/;Domain=www.example.com", response.Headers["Set-Cookie"]);
 		}
 
 		[TestMethod]
@@ -48,7 +51,7 @@ namespace Envoy.ArrCookieRestorer.Testing
 			request.QueryString["arrQueryString"] = "good";
 			ArrCookieRestorerModule.Restore(request, response);
 			Assert.AreEqual("arrCookie=good", request.Headers["Cookie"]);
-			Assert.AreEqual("arrCookie=good;Path=/", response.Headers["Set-Cookie"]);
+			Assert.AreEqual("arrCookie=good;Path=/;Domain=www.example.com", response.Headers["Set-Cookie"]);
 		}
 
 		[TestMethod]
@@ -58,6 +61,38 @@ namespace Envoy.ArrCookieRestorer.Testing
 			ArrCookieRestorerModule.Restore(request, response);
 			Assert.AreEqual("a=b; arrCookie=bad; x=y", request.Headers["Cookie"]);
 			Assert.IsNull(response.Headers["Set-Cookie"]);
+		}
+
+		[TestMethod]
+		public void TestResolveDuplicateCookies_NoCookies()
+		{
+			request.Headers["Cookie"] = null;
+			ArrCookieRestorerModule.ResolveDuplicateCookies(request, response);
+			Assert.IsNull(response.Headers["Set-Cookie"]);
+		}
+
+		[TestMethod]
+		public void TestResolveDuplicateCookies_HasCookie_NoArrCookie()
+		{
+			request.Headers["Cookie"] = "a=b";
+			ArrCookieRestorerModule.ResolveDuplicateCookies(request, response);
+			Assert.IsNull(response.Headers["Set-Cookie"]);
+		}
+
+		[TestMethod]
+		public void TestResolveDuplicateCookies_HasCookie_OneArrCookie()
+		{
+			request.Headers["Cookie"] = "a=b;arrCookie=good;c=d";
+			ArrCookieRestorerModule.ResolveDuplicateCookies(request, response);
+			Assert.IsNull(response.Headers["Set-Cookie"]);
+		}
+
+		[TestMethod]
+		public void TestResolveDuplicateCookies_HasCookie_DuplicateArrCookie()
+		{
+			request.Headers["Cookie"] = "a=b;arrCookie=good;c=d;arrCookie=bad";
+			ArrCookieRestorerModule.ResolveDuplicateCookies(request, response);
+			Assert.AreEqual("arrCookie=;Path=/;Expires=Fri, 01-Jan-1970 00:00:00 GMT", response.Headers["Set-Cookie"]);
 		}
 	}
 }
